@@ -55,7 +55,7 @@ class LossMinimizer:
 
   def _gram_matrix(self, features_tensor):
     batch_size, height, width, num_channels = tensor_shape(features_tensor)
-    feature_map_size = height * width 
+    feature_map_size = height * width
 
     features = tf.reshape(features_tensor, (batch_size, height*width, num_channels))
     features_T = tf.transpose(features, perm=[0,2,1])
@@ -77,7 +77,7 @@ class LossMinimizer:
       raise ValueError('Unknown type. Should be one of style/content.')
     for image in images:
       feed_image = np.expand_dims(image, axis=0)
-      single_tensor_values = self._sess.run(tensor_dict.values(), feed_dict={self._input_images: feed_image})
+      single_tensor_values = self._sess.run(list(tensor_dict.values()), feed_dict={self._input_images: feed_image})
       tensor_values.append(single_tensor_values)
 
     tensor_values = zip(*tensor_values)
@@ -85,7 +85,7 @@ class LossMinimizer:
     tensor_dict = dict(zip(tensor_dict.keys(), map(tf.constant, tensor_values)))
     return tensor_dict
 
-  def _setup_stylewise_loss_weights(self, default_style_weight, default_tv_weight, 
+  def _setup_stylewise_loss_weights(self, default_style_weight, default_tv_weight,
                                     stylewise_style_weights_dict={}, stylewise_tv_weights_dict={}):
     style_weights_np = np.asarray([default_style_weight]*self.num_styles)
     tv_weights_np = np.asarray([default_tv_weight]*self.num_styles)
@@ -97,7 +97,7 @@ class LossMinimizer:
     self.style_weights = tf.constant(style_weights_np, dtype=tf.float32)
     self.tv_weights = tf.constant(tv_weights_np, dtype=tf.float32)
 
-  def _setup_layerwise_loss_weights(self, layerwise_content_weights_dict={}, layerwise_style_weights_dict={}, 
+  def _setup_layerwise_loss_weights(self, layerwise_content_weights_dict={}, layerwise_style_weights_dict={},
       default_layerwise_content_weight=1., default_layerwise_style_weight=1.):
     assert set(layerwise_content_weights_dict.keys()).issubset(self.content_layers)
     self.layerwise_content_weights_dict = OrderedDict()
@@ -127,7 +127,7 @@ class LossMinimizer:
         self._layerwise_content_losses_dict[key] = layer_content_loss/tf.to_float(batch_size*height*width*num_channels)
 
       pred_style_value = self._gram_matrix(pred_batch[key])
-      style_losses = tf.map_fn(lambda x: x[2]*tf.nn.l2_loss(x[0]-x[1]), 
+      style_losses = tf.map_fn(lambda x: x[2]*tf.nn.l2_loss(x[0]-x[1]),
                       (pred_style_value, target_style_batch[key], style_weights_batch), dtype=tf.float32)
       layer_style_loss = tf.reduce_sum(style_losses)/tf.to_float(batch_size*num_channels*num_channels)
       self._layerwise_style_losses_dict[key] = STYLE_WEIGHT_MULTIPLIER*layer_style_loss
@@ -150,7 +150,7 @@ class LossMinimizer:
     return content_loss, style_loss
 
   def _find_tv_loss(self, preds):
-    tv_weights_batch = tf.nn.embedding_lookup(self.tv_weights, self._train_style_ids)    
+    tv_weights_batch = tf.nn.embedding_lookup(self.tv_weights, self._train_style_ids)
 
     batch_size, height, width, num_channels = tensor_shape(preds)
     tv_y_size = tf.to_float((height-1)*width*num_channels)
@@ -161,13 +161,13 @@ class LossMinimizer:
     tv_loss = tv_loss/tf.to_float(batch_size)
     return tv_loss
 
-  def setup_loss(self, content_weight, default_style_weight, default_tv_weight, stylewise_style_weights_dict={}, stylewise_tv_weights_dict={}, 
+  def setup_loss(self, content_weight, default_style_weight, default_tv_weight, stylewise_style_weights_dict={}, stylewise_tv_weights_dict={},
       layerwise_content_weights_dict={}, layerwise_style_weights_dict={}, default_layerwise_content_weight=1., default_layerwise_style_weight=1.):
     self.train_metrics = OrderedDefaultListDict()
 
     self.content_weight = content_weight
     self._setup_stylewise_loss_weights(default_style_weight, default_tv_weight, stylewise_style_weights_dict, stylewise_tv_weights_dict)
-    self._setup_layerwise_loss_weights(layerwise_content_weights_dict, layerwise_style_weights_dict, 
+    self._setup_layerwise_loss_weights(layerwise_content_weights_dict, layerwise_style_weights_dict,
       default_layerwise_content_weight=default_layerwise_content_weight, default_layerwise_style_weight=default_layerwise_style_weight)
 
     pred_batch = self._features_fn(self._stylized_train_images)
@@ -252,19 +252,19 @@ class SlowLossMinimizer(LossMinimizer):
     self._sess.run(self._stylized_image.initializer)
     print('Started optimization\n')
     self._start_time = time.time()
-    optimizer.minimize(session=self._sess, loss_callback=self._output_results, fetches=[self._total_loss, self._content_loss, self._style_loss, 
+    optimizer.minimize(session=self._sess, loss_callback=self._output_results, fetches=[self._total_loss, self._content_loss, self._style_loss,
       self._tv_loss, self._wtd_layerwise_content_losses_dict.values(), self._wtd_layerwise_style_losses_dict.values(), self._stylized_image])
 
   def _save_image(self, stylized_image):
     final_path = os.path.join(self.images_path, str(self.iters)+'.jpg' )
     save_image(final_path, stylized_image)
 
-  def _output_results(self, total_loss, content_loss, style_loss, tv_loss, wtd_layerwise_content_losses, wtd_layerwise_style_losses, 
+  def _output_results(self, total_loss, content_loss, style_loss, tv_loss, wtd_layerwise_content_losses, wtd_layerwise_style_losses,
       stylized_image):
     wtd_layerwise_content_losses_dict = OrderedDict(zip(self._wtd_layerwise_content_losses_dict.keys(), wtd_layerwise_content_losses))
     wtd_layerwise_style_losses_dict = OrderedDict(zip(self._wtd_layerwise_style_losses_dict.keys(), wtd_layerwise_style_losses))
     self._log_losses((total_loss, content_loss, style_loss, tv_loss), wtd_layerwise_content_losses_dict, wtd_layerwise_style_losses_dict)
-    self.iters = self.iters + 1    
+    self.iters = self.iters + 1
     if((self.iters-1)%self.checkpoint_iterations==0):
       avg_time_per_iteration = (time.time() - self._start_time)/float(self.iters)
       print('iteration: %d, average time/iteration: %f' % (self.iters, avg_time_per_iteration))
